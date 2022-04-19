@@ -37,22 +37,16 @@ func (srv *Server) Broadcast(user *User, msg string) {
 
 func (srv *Server) Handler(conn net.Conn) {
 	// 创建新用户
-	user := NewUser(conn)
+	user := NewUser(conn, srv)
 
-	// 将新用户添加到 OnlineMap中
-	srv.OnlineMapLock.Lock()
-	srv.OnlineMap[user.Name] = user
-	srv.OnlineMapLock.Unlock()
-
-	// 广播新用户上线消息
-	srv.Broadcast(user, "已上线")
+	user.Online()
 
 	// 广播客户端发送的消息（感觉这里可以不用并发）
 	buf := make([]byte, 4096)
 	for {
 		n, err := conn.Read(buf)
 		if n == 0 {
-			srv.Broadcast(user, "已下线")
+			user.Offline()
 			return
 		}
 		if err != nil && err != io.EOF {
@@ -64,7 +58,7 @@ func (srv *Server) Handler(conn net.Conn) {
 		msg := string(buf[:n-1])
 
 		// 广播用户输入的消息
-		srv.Broadcast(user, msg)
+		user.DoMessage(msg)
 	}
 }
 
