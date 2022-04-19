@@ -15,7 +15,7 @@ type User struct {
 }
 
 // NewUser 创建一个新用户
-func NewUser(conn net.Conn, server *Server) *User {
+func NewUser(conn net.Conn, srv *Server) *User {
 	userAddr := conn.RemoteAddr().String() // 用户的ip:port
 
 	user := &User{
@@ -23,7 +23,7 @@ func NewUser(conn net.Conn, server *Server) *User {
 		Addr:   userAddr,
 		C:      make(chan string),
 		conn:   conn,
-		server: server,
+		server: srv,
 	}
 
 	go user.ListenMessage() // 启动用户的监听
@@ -52,7 +52,16 @@ func (u *User) Offline() {
 }
 
 func (u *User) DoMessage(msg string) {
-	u.server.Broadcast(u, msg)
+	switch msg {
+	case "who":
+		// 查询当前用户所在的server中有哪些用户在线
+		for _, client := range u.server.OnlineMap {
+			str := fmt.Sprintf("[%s]%s: 在线中", client.Addr, client.Name)
+			u.C <- str
+		}
+	default:
+		u.server.Broadcast(u, msg)
+	}
 }
 
 // ListenMessage 用户监听channel中是否有信息，若有信息则写到客户端中
