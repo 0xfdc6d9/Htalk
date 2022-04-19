@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"sync"
 )
@@ -35,13 +36,36 @@ func (srv *Server) Broadcast(user *User, msg string) {
 }
 
 func (srv *Server) Handler(conn net.Conn) {
+	// 创建新用户
 	user := NewUser(conn)
 
+	// 将新用户添加到 OnlineMap中
 	srv.OnlineMapLock.Lock()
 	srv.OnlineMap[user.Name] = user
 	srv.OnlineMapLock.Unlock()
 
+	// 广播新用户上线消息
 	srv.Broadcast(user, "已上线")
+
+	// 广播客户端发送的消息（感觉这里可以不用并发）
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if n == 0 {
+			srv.Broadcast(user, "已下线")
+			return
+		}
+		if err != nil && err != io.EOF {
+			fmt.Println("conn.Read(buf) occurs an error: ", err)
+			return
+		}
+
+		// 去掉最后的回车
+		msg := string(buf[:n-1])
+
+		// 广播用户输入的消息
+		srv.Broadcast(user, msg)
+	}
 }
 
 // Start 启动服务器的接口
@@ -49,7 +73,7 @@ func (srv *Server) Start() {
 	// socket listen
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", srv.Ip, srv.Port))
 	if err != nil {
-		fmt.Println("net.Listen() occurs an err: ", err)
+		fmt.Println("net.Listen() occurs an error: ", err)
 		return
 	}
 
@@ -57,7 +81,7 @@ func (srv *Server) Start() {
 	defer func(listener net.Listener) {
 		err := listener.Close()
 		if err != nil {
-			fmt.Println("listener.Close() occurs an err: ", err)
+			fmt.Println("listener.Close() occurs an error: ", err)
 		}
 	}(listener)
 
@@ -67,7 +91,7 @@ func (srv *Server) Start() {
 		// accept
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("listener.Accept() occurs an err: ", err)
+			fmt.Println("listener.Accept() occurs an error: ", err)
 			continue
 		}
 
