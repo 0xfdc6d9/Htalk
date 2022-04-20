@@ -72,6 +72,30 @@ func (u *User) DoMessage(msg string) {
 		return
 	}
 
+	// 私聊消息格式：to|Username|消息
+	if len(msg) > 4 && msg[:3] == "to|" {
+		remoteName := strings.Split(msg, "|")[1]
+		if remoteName == "" {
+			u.C <- "消息格式不正确，请使用私聊消息格式：to|Username|消息"
+			return
+		}
+
+		remoteUser, ok := u.server.OnlineMap[remoteName]
+		if !ok {
+			u.C <- "该用户名不存在"
+			return
+		}
+
+		content := strings.Split(msg, "|")[2]
+		if content == "" {
+			u.C <- "发送消息不能为空"
+			return
+		}
+		content = fmt.Sprintf("%s对您说：%s", u.Name, content)
+		remoteUser.C <- content
+		return
+	}
+
 	switch msg {
 	case "who":
 		// 查询当前用户所在的server中有哪些用户在线
@@ -80,6 +104,7 @@ func (u *User) DoMessage(msg string) {
 			u.C <- str
 		}
 	default:
+		// 广播消息
 		u.server.Broadcast(u, msg)
 	}
 }
