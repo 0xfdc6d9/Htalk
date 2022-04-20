@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -41,24 +42,49 @@ func (srv *Server) Handler(conn net.Conn) {
 
 	user.Online()
 
-	// 广播客户端发送的消息（感觉这里可以不用并发）
-	buf := make([]byte, 4096)
+	isLive := make(chan bool) // 判断用户是否在线
+
+	// 广播客户端发送的消息（为了做超时强踢，将这部分异步出去）
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := conn.Read(buf)
+			if n == 0 {
+				user.Offline()
+				return
+			}
+			if err != nil && err != io.EOF {
+				fmt.Println("conn.Read(buf) occurs an error: ", err)
+				return
+			}
+
+			isLive <- true
+			// 去掉最后的回车
+			msg := string(buf[:n-1])
+
+			// 广播用户输入的消息
+			user.DoMessage(msg)
+		}
+	}()
+
 	for {
-		n, err := conn.Read(buf)
-		if n == 0 {
-			user.Offline()
+		select {
+		case <-isLive:
+
+		case <-time.After(time.Second * 30):
+			// 超时强踢
+			user.C <- "你被踢了"
+			time.Sleep(1 * time.Second)
+			close(user.C)
+			close(isLive)
+
+			err := conn.Close() // 关闭conn会使server读buf的数据长度为0，触发Offline
+			if err != nil {
+				fmt.Println("conn.Close() occurs an error: ", err)
+				return
+			}
 			return
 		}
-		if err != nil && err != io.EOF {
-			fmt.Println("conn.Read(buf) occurs an error: ", err)
-			return
-		}
-
-		// 去掉最后的回车
-		msg := string(buf[:n-1])
-
-		// 广播用户输入的消息
-		user.DoMessage(msg)
 	}
 }
 

@@ -71,6 +71,7 @@ func (u *User) DoMessage(msg string) {
 		u.server.OnlineMapLock.Unlock()
 		return
 	}
+
 	switch msg {
 	case "who":
 		// 查询当前用户所在的server中有哪些用户在线
@@ -87,7 +88,10 @@ func (u *User) DoMessage(msg string) {
 func (u *User) ListenMessage() {
 	for {
 		select {
-		case msg := <-u.C:
+		case msg, isOpen := <-u.C:
+			if !isOpen {
+				return
+			}
 			_, err := u.conn.Write([]byte(msg + "\n"))
 			if err != nil {
 				fmt.Println("u.conn.Write([]byte(msg + \"\\n\")) occurs an error", err)
