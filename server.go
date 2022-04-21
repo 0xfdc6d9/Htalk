@@ -71,7 +71,7 @@ func (srv *Server) Handler(conn net.Conn) {
 		select {
 		case <-isLive:
 
-		case <-time.After(time.Second * 30):
+		case <-time.After(time.Second * 300):
 			// 超时强踢
 			user.C <- "你被踢了"
 			time.Sleep(1 * time.Second)
